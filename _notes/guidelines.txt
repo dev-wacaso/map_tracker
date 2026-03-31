@@ -1,0 +1,9 @@
+- java 21
+- gradle
+- I develop this project in windows
+- Claude Code develops in wsl
+- present flutter commands to me to run manually in window
+- use riverpod, but not the riverpod annotations generator
+- use the popular/tested flutter packages as needed to minimize the amount of code to be generated
+- use docker engine running in wsl to replicate the GCP environment server-side components will be deployed to
+

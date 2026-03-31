@@ -1,0 +1,26 @@
+# Root level
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build directories (recursive)
+**/build/
+**/target/
+**/dist/
+**/out/
+
+# Dependencies
+**/node_modules/
+**/vendor/
+
+# OS generated files
+Thumbs.db
+

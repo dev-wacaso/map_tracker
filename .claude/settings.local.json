@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.\\(dart|yaml|md\\)$\")",
+      "Bash(BASE=/mnt/c/_DEV/_projects/_intellij/_apps/map_tracker/map_tracker_spring)",
+      "Bash(mkdir -p \"$BASE/src/main/java/com/isquibly/maptracker\")",
+      "Bash(mkdir -p \"$BASE/src/test/java/com/isquibly/maptracker\")",
+      "Bash(mkdir -p \"$BASE/src/main/resources/db/migration\")",
+      "Bash(rm -rf \"$BASE/src/main/java/com/isquibly/map-tracker\")",
+      "Bash(rm -rf \"$BASE/src/test/java/com/isquibly/map-tracker\")",
+      "Bash(./gradlew build:*)",
+      "WebSearch",
+      "WebFetch(domain:pub.dev)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}
