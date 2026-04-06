@@ -1,6 +1,7 @@
 package com.isquibly.maptracker.controller;
 
 import com.isquibly.maptracker.config.AppProperties;
+import com.isquibly.maptracker.service.DynamicConfigService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,14 +13,14 @@ import javax.sql.DataSource;
 @RequiredArgsConstructor
 public class ConfigController {
 
-    private final AppProperties config;
+    private final DynamicConfigService dynamicConfigService;
     
     @Autowired
     private DataSource dataSource;
 
     @GetMapping("/config")
     public AppProperties getConfig() {
-        return config;
+        return dynamicConfigService.getCurrentConfig();
     }
     
     @GetMapping("/debug/connection")

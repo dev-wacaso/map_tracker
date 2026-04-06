@@ -1,11 +1,11 @@
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/map_bounds.dart';
 
 enum ZoomMode { empty, heatmap, detail }
 
 class MapState {
   final double zoom;
-  final LatLngBounds? bounds;
+  final MapBounds? bounds;
   final ZoomMode mode;
 
   const MapState({
@@ -14,7 +14,7 @@ class MapState {
     this.mode = ZoomMode.empty,
   });
 
-  MapState copyWith({double? zoom, LatLngBounds? bounds, ZoomMode? mode}) =>
+  MapState copyWith({double? zoom, MapBounds? bounds, ZoomMode? mode}) =>
       MapState(
         zoom: zoom ?? this.zoom,
         bounds: bounds ?? this.bounds,
@@ -30,7 +30,7 @@ class MapStateNotifier extends Notifier<MapState> {
 
   void update({
     required double zoom,
-    required LatLngBounds bounds,
+    required MapBounds bounds,
     required double thresholdHeatmap,
     required double thresholdDetail,
   }) {

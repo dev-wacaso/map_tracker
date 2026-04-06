@@ -12,7 +12,15 @@
       "WebSearch",
       "WebFetch(domain:pub.dev)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:mapsplatform.google.com)",
+      "WebFetch(domain:www.mapbox.com)",
+      "WebFetch(domain:stadiamaps.com)",
+      "WebFetch(domain:www.maptiler.com)",
+      "WebFetch(domain:www.thunderforest.com)",
+      "WebFetch(domain:docs.mapbox.com)",
+      "WebFetch(domain:developers.google.com)",
+      "WebFetch(domain:www.streetmap.biz)"
     ]
   }
 }

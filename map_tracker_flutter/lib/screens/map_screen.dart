@@ -1,15 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:latlong2/latlong.dart';
-import '../models/cache_entry.dart';
+import '../map_adapter/flutter_map/flutter_map_view.dart';
+import '../map_adapter/google_maps/google_map_view.dart';
+import '../map_adapter/map_provider_type.dart';
+import '../map_adapter/map_view.dart';
+import '../models/map_bounds.dart';
 import '../providers/bucket_cache_provider.dart';
 import '../providers/config_provider.dart';
+import '../providers/map_provider_selector.dart';
 import '../providers/map_state_provider.dart';
 import '../services/viewer_service.dart';
-import '../widgets/heatmap_layer.dart';
-import '../widgets/user_marker.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
@@ -19,7 +20,6 @@ class MapScreen extends ConsumerStatefulWidget {
 }
 
 class _MapScreenState extends ConsumerState<MapScreen> {
-  final MapController _mapController = MapController();
   Timer? _refreshTimer;
   Timer? _debounceTimer;
 
@@ -41,15 +41,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     super.dispose();
   }
 
-  void _onMapEvent(MapEvent event) {
-    if (event is! MapEventMove && event is! MapEventRotate) return;
+  void _onViewportChanged(double zoom, MapBounds bounds) {
     final config = ref.read(configProvider).value;
     if (config == null) return;
 
-    final camera = _mapController.camera;
     ref.read(mapStateProvider.notifier).update(
-          zoom: camera.zoom,
-          bounds: camera.visibleBounds,
+          zoom: zoom,
+          bounds: bounds,
           thresholdHeatmap: config.zoomThresholdHeatmap,
           thresholdDetail: config.zoomThresholdDetail,
         );
@@ -67,50 +65,84 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final configAsync = ref.watch(configProvider);
     final mapState = ref.watch(mapStateProvider);
     final cache = ref.watch(bucketCacheProvider);
+    final providerType = ref.watch(mapProviderTypeProvider);
+
+    final heatmapBuckets = cache.entries
+        .where((e) => e.key.endsWith('::heatmap') && e.value.heatmap != null)
+        .map((e) => e.value.heatmap!)
+        .toList();
+
+    final users = cache.entries
+        .where((e) => e.key.endsWith('::detail') && e.value.detail != null)
+        .expand((e) => e.value.detail!.users)
+        .toList();
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Map Tracker'),
+        actions: [
+          _MapToggle(
+            current: providerType,
+            onChanged: (type) =>
+                ref.read(mapProviderTypeProvider.notifier).setProvider(type),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: configAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Failed to load config: $e')),
-        data: (_) => FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: const LatLng(51.5, -0.09),
-            initialZoom: 5.0,
-            onMapEvent: _onMapEvent,
-          ),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.isquibly.map_tracker',
-            ),
-            if (mapState.mode == ZoomMode.heatmap) _buildHeatmapLayer(cache),
-            if (mapState.mode == ZoomMode.detail) _buildMarkerLayer(cache),
-          ],
-        ),
+        data: (_) => _buildMapView(providerType, mapState, heatmapBuckets, users),
       ),
     );
   }
 
-  Widget _buildHeatmapLayer(Map<String, CacheEntry> cache) {
-    final buckets = cache.entries
-        .where((e) => e.key.endsWith('::heatmap') && e.value.heatmap != null)
-        .map((e) => e.value.heatmap!)
-        .toList();
-    return HexHeatmapLayer(buckets: buckets);
+  MapView _buildMapView(MapProviderType type, MapState mapState,
+      heatmapBuckets, users) {
+    return switch (type) {
+      MapProviderType.googleMaps => GoogleMapView(
+          onViewportChanged: _onViewportChanged,
+          mode: mapState.mode,
+          heatmapBuckets: heatmapBuckets,
+          users: users,
+        ),
+      MapProviderType.flutterMap => FlutterMapView(
+          onViewportChanged: _onViewportChanged,
+          mode: mapState.mode,
+          heatmapBuckets: heatmapBuckets,
+          users: users,
+        ),
+    };
   }
+}
 
-  Widget _buildMarkerLayer(Map<String, CacheEntry> cache) {
-    final markers = cache.entries
-        .where((e) => e.key.endsWith('::detail') && e.value.detail != null)
-        .expand((e) => e.value.detail!.users)
-        .map((user) => Marker(
-              point: LatLng(user.lat, user.lng),
-              width: 36,
-              height: 36,
-              child: UserMarker(user: user),
-            ))
-        .toList();
-    return MarkerLayer(markers: markers);
+class _MapToggle extends StatelessWidget {
+  final MapProviderType current;
+  final void Function(MapProviderType) onChanged;
+
+  const _MapToggle({required this.current, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<MapProviderType>(
+      segments: const [
+        ButtonSegment(
+          value: MapProviderType.googleMaps,
+          label: Text('Google'),
+          icon: Icon(Icons.map),
+        ),
+        ButtonSegment(
+          value: MapProviderType.flutterMap,
+          label: Text('OSM'),
+          icon: Icon(Icons.public),
+        ),
+      ],
+      selected: {current},
+      onSelectionChanged: (selection) => onChanged(selection.first),
+      style: const ButtonStyle(
+        visualDensity: VisualDensity.compact,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
   }
 }

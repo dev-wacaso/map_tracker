@@ -1,0 +1,200 @@
+# Converting PostgreSQL to PostGIS
+
+This guide covers enabling the PostGIS extension on an existing PostgreSQL database — both locally in Docker (WSL) and on GCP Cloud SQL.
+
+---
+
+## What PostGIS Adds
+
+PostGIS is a PostgreSQL extension, not a separate database. It adds:
+- Geometry/geography data types (`GEOMETRY`, `GEOGRAPHY`)
+- Spatial indexing (GiST)
+- Spatial functions (`ST_Distance`, `ST_Within`, `ST_AsText`, etc.)
+- A `spatial_ref_sys` table (coordinate reference systems)
+
+---
+
+## Local Docker Setup (WSL)
+
+### 1. Use the PostGIS Docker Image
+
+In `docker-compose.yml`, replace the standard `postgres` image with the official PostGIS image:
+
+```yaml
+services:
+  postgres:
+    image: postgis/postgis:16-3.4   # postgres 16, postgis 3.4
+    container_name: map_tracker_db
+    environment:
+      POSTGRES_DB: map_tracker
+      POSTGRES_USER: map_user
+      POSTGRES_PASSWORD: changeme
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+```
+
+The `postgis/postgis` image is the official image and auto-loads the PostGIS binaries. It does **not** auto-enable the extension in your database — you still need to run the `CREATE EXTENSION` step below.
+
+### 2. Enable the Extension
+
+Connect to your database and run:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS postgis_topology;  -- optional: topology support
+```
+
+Verify it worked:
+
+```sql
+SELECT PostGIS_Full_Version();
+```
+
+### 3. If You Already Have a Running Container
+
+If you have an existing `postgres` container with data you want to keep:
+
+1. Stop the container: `docker-compose down`
+2. Change the image in `docker-compose.yml` to `postgis/postgis:16-3.4`
+3. Restart: `docker-compose up -d`
+4. Connect and run `CREATE EXTENSION IF NOT EXISTS postgis;`
+
+PostGIS binaries are added alongside the existing data — no data migration needed. The volume data is compatible as long as the major Postgres version does not change.
+
+> **Warning:** Changing the major Postgres version (e.g., 15 → 16) while keeping an existing data volume will cause startup failures. Either keep the same major version or export/import data with `pg_dump`/`pg_restore`.
+
+---
+
+## Adding a Geometry Column to an Existing Table
+
+If you have an existing table (e.g., `locations`) and want to add spatial support:
+
+```sql
+-- Add a geography column (uses WGS84 / EPSG:4326 — standard GPS coordinates)
+ALTER TABLE locations
+    ADD COLUMN geom GEOGRAPHY(Point, 4326);
+
+-- Populate from existing lat/lng columns
+UPDATE locations
+SET geom = ST_MakePoint(lng, lat)::GEOGRAPHY;
+
+-- Add a spatial index
+CREATE INDEX idx_locations_geom ON locations USING GIST (geom);
+```
+
+Use `GEOGRAPHY` (not `GEOMETRY`) for GPS coordinates — it handles the spherical earth math correctly for distance queries.
+
+---
+
+## Spring Boot / Hibernate Integration
+
+### `build.gradle` dependency
+
+```groovy
+// Hibernate Spatial (included in hibernate-core 6.x, no extra dep needed for Spring Boot 3.x)
+implementation 'org.hibernate.orm:hibernate-spatial:6.4.4.Final'
+
+// PostGIS JDBC dialect
+implementation 'net.postgis:postgis-jdbc:2023.1.0'
+```
+
+### `application.yml` dialect
+
+```yaml
+spring:
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.spatial.dialect.postgis.PostgisPG10Dialect
+```
+
+For Spring Boot 3.x / Hibernate 6.x, the dialect is auto-detected. You may not need to set it explicitly — test first.
+
+### Entity Example
+
+```java
+import org.locationtech.jts.geom.Point;
+
+@Entity
+public class Location {
+
+    @Id
+    @GeneratedValue
+    private Long id;
+
+    @Column(columnDefinition = "geography(Point,4326)")
+    private Point geom;  // org.locationtech.jts.geom.Point
+}
+```
+
+Add the JTS geometry library:
+
+```groovy
+implementation 'org.locationtech.jts:jts-core:1.19.0'
+```
+
+---
+
+## GCP Cloud SQL
+
+GCP Cloud SQL for PostgreSQL ships with PostGIS available as a built-in extension — no image change needed.
+
+### Enable via Cloud Console
+
+1. Go to **Cloud SQL → Your Instance → Databases**
+2. Select your database
+3. Under **Extensions**, click **Add Extension** → select `postgis`
+
+### Enable via `psql` / migration
+
+```sql
+CREATE EXTENSION IF NOT EXISTS postgis;
+```
+
+This works from any SQL client connected to the Cloud SQL instance (direct IP, Cloud SQL Proxy, or Cloud SQL Auth Proxy).
+
+### Cloud SQL Auth Proxy (recommended for local dev against Cloud SQL)
+
+```bash
+# Download and run the proxy
+./cloud-sql-proxy PROJECT:REGION:INSTANCE_NAME --port=5432
+```
+
+Then connect with standard JDBC on `localhost:5432`.
+
+---
+
+## Verifying PostGIS is Active
+
+```sql
+-- Should return a row with version info
+SELECT * FROM pg_extension WHERE extname = 'postgis';
+
+-- Full version string
+SELECT PostGIS_Full_Version();
+
+-- Confirm spatial functions work
+SELECT ST_Distance(
+    ST_MakePoint(-73.9857, 40.7484)::GEOGRAPHY,
+    ST_MakePoint(-87.6298, 41.8781)::GEOGRAPHY
+) AS distance_meters;
+-- Expected: ~1,144,000 meters (NYC to Chicago)
+```
+
+---
+
+## Flyway / Liquibase Migration Note
+
+If you use Flyway for schema migrations, add the extension creation as your first migration:
+
+```sql
+-- V1__init_postgis.sql
+CREATE EXTENSION IF NOT EXISTS postgis;
+```
+
+`IF NOT EXISTS` makes this idempotent — safe to run on a database that already has PostGIS enabled.

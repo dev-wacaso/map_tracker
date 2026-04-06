@@ -1,11 +1,11 @@
-import 'package:flutter_map/flutter_map.dart';
 import 'package:h3_flutter/h3_flutter.dart';
 import 'package:latlong2/latlong.dart';
+import '../models/map_bounds.dart';
 
 final _h3 = const H3Factory().load();
 
 /// Returns H3 cell IDs (lowercase hex strings) covering [bounds] at [resolution].
-List<String> cellsForViewport(LatLngBounds bounds, int resolution) {
+List<String> cellsForViewport(MapBounds bounds, int resolution) {
   final cells = _h3.polygonToCells(
     perimeter: [
       GeoCoord(lat: bounds.north, lon: bounds.west),

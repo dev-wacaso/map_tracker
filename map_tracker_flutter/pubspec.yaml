@@ -34,6 +34,7 @@ dependencies:
   cupertino_icons: ^1.0.9
   flutter_riverpod: ^3.2.1
   flutter_map: ^8.2.2
+  google_maps_flutter: ^2.9.0
   h3_flutter: ^0.7.1
   dio: ^5.9.2
   hive_flutter: ^1.1.0
