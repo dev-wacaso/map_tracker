@@ -5,6 +5,8 @@ import com.isquibly.maptracker.dto.LocationRequest;
 import com.isquibly.maptracker.dto.UserEntry;
 import com.isquibly.maptracker.entity.LocationPost;
 import com.isquibly.maptracker.redis.RedisLocationStore;
+import com.isquibly.maptracker.region.RegionLookup;
+import com.isquibly.maptracker.region.RegionRedisStore;
 import com.isquibly.maptracker.repository.LocationPostRepository;
 import com.isquibly.maptracker.util.BearingCalculator;
 import com.uber.h3core.H3Core;
@@ -26,15 +28,18 @@ public class LocationService {
 
     private final AppProperties config;
     private final RedisLocationStore redisStore;
+    private final RegionRedisStore regionRedisStore;
     private final LocationPostRepository repository;
     private final H3Core h3;
 
     public LocationService(AppProperties config, RedisLocationStore redisStore,
+                           RegionRedisStore regionRedisStore,
                            LocationPostRepository repository) throws IOException {
-        this.config     = config;
-        this.redisStore = redisStore;
-        this.repository = repository;
-        this.h3         = H3Core.newInstance();
+        this.config           = config;
+        this.redisStore       = redisStore;
+        this.regionRedisStore = regionRedisStore;
+        this.repository       = repository;
+        this.h3               = H3Core.newInstance();
     }
 
     public void handleLocationPost(LocationRequest req) {
@@ -52,8 +57,13 @@ public class LocationService {
                 bearing, req.timestamp()
         );
 
+        // H3 write path
         redisStore.upsertUser(h3DetailCell, h3HeatmapCell, entry, req.timestamp());
         redisStore.saveLastPosition(req.userId(), req.lat(), req.lng());
+
+        // Region write path — write to every matching region (border riders may match >1)
+        RegionLookup.findRegions(req.lat(), req.lng())
+                .forEach(region -> regionRedisStore.upsertRider(region.id(), entry, req.timestamp()));
 
         var point = GF.createPoint(new Coordinate(req.lng(), req.lat()));
         repository.save(LocationPost.builder()

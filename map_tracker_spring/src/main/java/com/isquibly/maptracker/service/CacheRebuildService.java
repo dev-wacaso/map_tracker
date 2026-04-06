@@ -3,6 +3,8 @@ package com.isquibly.maptracker.service;
 import com.isquibly.maptracker.dto.UserEntry;
 import com.isquibly.maptracker.entity.LocationPost;
 import com.isquibly.maptracker.redis.RedisLocationStore;
+import com.isquibly.maptracker.region.RegionLookup;
+import com.isquibly.maptracker.region.RegionRedisStore;
 import com.isquibly.maptracker.repository.LocationPostRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +23,7 @@ public class CacheRebuildService {
 
     private final LocationPostRepository repository;
     private final RedisLocationStore redisStore;
+    private final RegionRedisStore regionRedisStore;
 
     @EventListener(ApplicationReadyEvent.class)
     public void rebuildCacheOnStartup() {
@@ -34,13 +37,21 @@ public class CacheRebuildService {
 
         log.info("Cache rebuild: replaying {} recent location posts into Redis.", recent.size());
         for (LocationPost post : recent) {
+            double lat = post.getLocation().getY();
+            double lng = post.getLocation().getX();
             UserEntry entry = new UserEntry(
                     post.getUserId(), post.getRole(),
-                    post.getLocation().getY(), post.getLocation().getX(),
+                    lat, lng,
                     post.getBearing(), post.getTimestamp()
             );
+
+            // H3 rebuild
             redisStore.upsertUserForRebuild(post.getH3DetailCell(), post.getH3HeatmapCell(),
                     entry, post.getTimestamp());
+
+            // Region rebuild
+            RegionLookup.findRegions(lat, lng)
+                    .forEach(region -> regionRedisStore.upsertRider(region.id(), entry, post.getTimestamp()));
         }
         log.info("Cache rebuild complete.");
     }
