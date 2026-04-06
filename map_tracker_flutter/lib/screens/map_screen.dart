@@ -6,11 +6,13 @@ import '../map_adapter/google_maps/google_map_view.dart';
 import '../map_adapter/map_provider_type.dart';
 import '../map_adapter/map_view.dart';
 import '../models/map_bounds.dart';
-import '../providers/bucket_cache_provider.dart';
 import '../providers/config_provider.dart';
+import '../providers/fetching_provider.dart';
 import '../providers/map_provider_selector.dart';
 import '../providers/map_state_provider.dart';
-import '../services/viewer_service.dart';
+import '../providers/region_bucket_cache_provider.dart';
+import '../services/region_viewer_service.dart';
+import '../widgets/fetch_indicator.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
@@ -57,7 +59,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _triggerRefresh() {
-    ref.read(viewerServiceProvider).refresh();
+    ref.read(regionViewerServiceProvider).refresh();
   }
 
   @override
@@ -67,15 +69,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final cache = ref.watch(bucketCacheProvider);
     final providerType = ref.watch(mapProviderTypeProvider);
 
-    final heatmapBuckets = cache.entries
-        .where((e) => e.key.endsWith('::heatmap') && e.value.heatmap != null)
-        .map((e) => e.value.heatmap!)
+    final isFetching = ref.watch(fetchingProvider);
+    final regionCache = ref.watch(regionBucketCacheProvider);
+
+    // All riders from every cached region bucket — map views decide how to render
+    // based on zoom mode (heatmap layer vs individual markers).
+    final users = regionCache.values
+        .expand((entry) => entry.bucket.riders)
         .toList();
 
-    final users = cache.entries
-        .where((e) => e.key.endsWith('::detail') && e.value.detail != null)
-        .expand((e) => e.value.detail!.users)
-        .toList();
+    // No H3 heatmap buckets in region mode — point heatmap is computed client-side
+    // from the users list in FlutterMapView.
+    const heatmapBuckets = <dynamic>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -92,7 +97,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       body: configAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Failed to load config: $e')),
-        data: (_) => _buildMapView(providerType, mapState, heatmapBuckets, users),
+        data: (_) => Stack(
+          children: [
+            _buildMapView(providerType, mapState, heatmapBuckets, users),
+            Positioned(
+              top: 12,
+              right: 12,
+              child: FetchIndicator(isFetching: isFetching),
+            ),
+          ],
+        ),
       ),
     );
   }

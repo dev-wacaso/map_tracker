@@ -3,6 +3,7 @@ import '../models/app_config.dart';
 import '../providers/api_service_provider.dart';
 import '../providers/bucket_cache_provider.dart';
 import '../providers/config_provider.dart';
+import '../providers/fetching_provider.dart';
 import '../providers/map_state_provider.dart';
 import '../utils/h3_viewport.dart';
 
@@ -30,34 +31,38 @@ class ViewerService {
     final visibleCells = cellsForViewport(mapState.bounds!, resolution);
     if (visibleCells.isEmpty) return;
 
-    final maxAge = Duration(seconds: _config.viewerRefreshIntervalDefaultSeconds);
     final cache = _ref.read(bucketCacheProvider.notifier);
 
-    // Lightweight staleness check via server timestamps
-    final serverTimestamps =
-        await _ref.read(apiServiceProvider).fetchCellTimestamps(visibleCells);
+    _ref.read(fetchingProvider.notifier).state = true;
+    try {
+      // Lightweight staleness check via server timestamps
+      final serverTimestamps =
+          await _ref.read(apiServiceProvider).fetchCellTimestamps(visibleCells);
 
-    final staleCells = visibleCells.where((cell) {
-      final serverTs = serverTimestamps[cell];
-      if (serverTs == null) return false; // cell has no data on server
-      final entry = _ref.read(bucketCacheProvider)['$cell::$mode'];
-      if (entry == null) return true; // not cached
-      final serverTime = DateTime.parse(serverTs);
-      return serverTime.isAfter(entry.receivedAt); // server has newer data
-    }).toList();
+      final staleCells = visibleCells.where((cell) {
+        final serverTs = serverTimestamps[cell];
+        if (serverTs == null) return false; // cell has no data on server
+        final entry = _ref.read(bucketCacheProvider)['$cell::$mode'];
+        if (entry == null) return true; // not cached
+        final serverTime = DateTime.parse(serverTs);
+        return serverTime.isAfter(entry.receivedAt); // server has newer data
+      }).toList();
 
-    if (staleCells.isNotEmpty) {
-      final api = _ref.read(apiServiceProvider);
-      if (mode == 'detail') {
-        final buckets = await api.fetchDetailBuckets(staleCells);
-        cache.mergeDetailBuckets(buckets);
-      } else {
-        final buckets = await api.fetchHeatmapBuckets(staleCells);
-        cache.mergeHeatmapBuckets(buckets);
+      if (staleCells.isNotEmpty) {
+        final api = _ref.read(apiServiceProvider);
+        if (mode == 'detail') {
+          final buckets = await api.fetchDetailBuckets(staleCells);
+          cache.mergeDetailBuckets(buckets);
+        } else {
+          final buckets = await api.fetchHeatmapBuckets(staleCells);
+          cache.mergeHeatmapBuckets(buckets);
+        }
       }
-    }
 
-    cache.evictCellsNotIn(visibleCells.toSet());
+      cache.evictCellsNotIn(visibleCells.toSet());
+    } finally {
+      _ref.read(fetchingProvider.notifier).state = false;
+    }
   }
 }
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:h3_flutter/h3_flutter.dart';
+import '../../config/debug_flags.dart';
+import '../../data/regions.dart';
 import '../../models/map_bounds.dart';
 import '../../providers/map_state_provider.dart';
 import '../../utils/h3_viewport.dart';
@@ -25,8 +27,8 @@ class _GoogleMapViewState extends State<GoogleMapView> {
   gmaps.GoogleMapController? _controller;
 
   static const _initialPosition = gmaps.CameraPosition(
-    target: gmaps.LatLng(51.5, -0.09),
-    zoom: 5.0,
+    target: gmaps.LatLng(39.7392, -104.9903), // Denver, CO
+    zoom: 9.0,
   );
 
   // onCameraMove fires synchronously; getVisibleRegion is async so we fire-and-forget.
@@ -87,6 +89,25 @@ class _GoogleMapViewState extends State<GoogleMapView> {
     }).toSet();
   }
 
+  // --- debug helpers ---------------------------------------------------------
+
+  Set<gmaps.Polygon> _buildRegionDebugPolygons() => kRegions.map((r) {
+        return gmaps.Polygon(
+          polygonId: gmaps.PolygonId('debug_region_${r.id}'),
+          points: [
+            gmaps.LatLng(r.north, r.west),
+            gmaps.LatLng(r.north, r.east),
+            gmaps.LatLng(r.south, r.east),
+            gmaps.LatLng(r.south, r.west),
+          ],
+          fillColor: Colors.cyan.withValues(alpha: 0.08),
+          strokeColor: Colors.cyan.withValues(alpha: 0.6),
+          strokeWidth: 1,
+        );
+      }).toSet();
+
+  // ---------------------------------------------------------------------------
+
   Color _heatColor(double t) {
     if (t < 0.5) {
       return Color.lerp(Colors.yellow, Colors.orange, t * 2)!;
@@ -109,7 +130,10 @@ class _GoogleMapViewState extends State<GoogleMapView> {
       initialCameraPosition: _initialPosition,
       onMapCreated: (controller) => setState(() => _controller = controller),
       onCameraMove: _onCameraMove,
-      polygons: widget.mode == ZoomMode.heatmap ? _buildHeatmapPolygons() : {},
+      polygons: {
+        if (widget.mode == ZoomMode.heatmap) ..._buildHeatmapPolygons(),
+        if (kDebugShowRegionBoundaries) ..._buildRegionDebugPolygons(),
+      },
       markers: widget.mode == ZoomMode.detail ? _buildMarkers() : {},
       myLocationButtonEnabled: false,
       zoomControlsEnabled: false,
