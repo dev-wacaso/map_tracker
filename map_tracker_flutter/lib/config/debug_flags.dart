@@ -3,3 +3,6 @@
 
 /// Draws region bounding boxes on the map with ID/name labels.
 const bool kDebugShowRegionBoundaries = true;
+
+/// Shows current zoom level and zoom mode as a text overlay on the map.
+const bool kDebugShowZoomLevel = true;

@@ -71,8 +71,7 @@ class _FlutterMapViewState extends State<FlutterMapView> {
 
   // ---------------------------------------------------------------------------
 
-  void _onMapEvent(MapEvent event) {
-    if (event is! MapEventMove && event is! MapEventRotate) return;
+  void _reportViewport() {
     final camera = _mapController.camera;
     final fb = camera.visibleBounds;
     widget.onViewportChanged(
@@ -86,6 +85,13 @@ class _FlutterMapViewState extends State<FlutterMapView> {
     );
   }
 
+  void _onMapReady() => _reportViewport();
+
+  void _onMapEvent(MapEvent event) {
+    if (event is! MapEventMove && event is! MapEventRotate) return;
+    _reportViewport();
+  }
+
   @override
   Widget build(BuildContext context) {
     return FlutterMap(
@@ -93,6 +99,7 @@ class _FlutterMapViewState extends State<FlutterMapView> {
       options: MapOptions(
         initialCenter: const LatLng(39.7392, -104.9903), // Denver, CO
         initialZoom: 9.0,
+        onMapReady: _onMapReady,
         onMapEvent: _onMapEvent,
       ),
       children: [
@@ -100,25 +107,18 @@ class _FlutterMapViewState extends State<FlutterMapView> {
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.isquibly.map_tracker',
         ),
-        if (widget.mode == ZoomMode.heatmap) ...[
-          // Region mode: overlapping semi-transparent circles accumulate opacity
-          // to produce a natural density heatmap effect.
-          if (widget.users.isNotEmpty)
-            CircleLayer(
-              circles: widget.users
-                  .map((u) => CircleMarker(
-                        point: LatLng(u.lat, u.lng),
-                        radius: 3000,
-                        useRadiusInMeter: true,
-                        color: Colors.red.withValues(alpha: 0.15),
-                        borderStrokeWidth: 0,
-                      ))
-                  .toList(),
-            )
-          // H3 mode fallback: hex polygons when H3 heatmap buckets are present
-          else if (widget.heatmapBuckets.isNotEmpty)
-            HexHeatmapLayer(buckets: widget.heatmapBuckets),
-        ],
+        if (widget.mode == ZoomMode.heatmap && widget.users.isNotEmpty)
+          CircleLayer(
+            circles: widget.users
+                .map((u) => CircleMarker(
+                      point: LatLng(u.lat, u.lng),
+                      radius: 3000,
+                      useRadiusInMeter: true,
+                      color: Colors.red.withValues(alpha: 0.15),
+                      borderStrokeWidth: 0,
+                    ))
+                .toList(),
+          ),
         if (widget.mode == ZoomMode.detail)
           MarkerLayer(
             markers: widget.users

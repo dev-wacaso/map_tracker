@@ -2,6 +2,8 @@ package com.isquibly.maptracker.region;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -17,6 +19,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class RegionController {
 
+    private static final Logger log = LoggerFactory.getLogger(RegionController.class);
     private final RegionBucketService regionBucketService;
 
     /**
@@ -27,7 +30,10 @@ public class RegionController {
     @PostMapping("/timestamps")
     public Map<String, String> getRegionTimestamps(
             @Valid @RequestBody RegionTimestampsRequest request) {
-        return regionBucketService.getRegionTimestamps(request.regions());
+        log.debug("getRegionTimestamps requested regions: {}", request.regions());
+        Map<String, String> result = regionBucketService.getRegionTimestamps(request.regions());
+        log.debug("getRegionTimestamps result: {} regions with data out of {} requested", result.values().stream().filter(v -> v != null).count(), request.regions().size());
+        return result;
     }
 
     /**
@@ -38,6 +44,9 @@ public class RegionController {
     @PostMapping("/buckets")
     public Map<String, RegionBucket> getRegionBuckets(
             @Valid @RequestBody RegionBucketsRequest request) {
-        return regionBucketService.getRegionBuckets(request.regions());
+        Map<String, RegionBucket> result = regionBucketService.getRegionBuckets(request.regions());
+        result.forEach((regionId, bucket) ->
+                log.debug("getRegionBuckets region={} count={}", regionId, bucket.riders().size()));
+        return result;
     }
 }

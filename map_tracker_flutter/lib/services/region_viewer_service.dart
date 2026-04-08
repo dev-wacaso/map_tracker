@@ -10,9 +10,11 @@ import '../providers/region_bucket_cache_provider.dart';
 /// Region-based viewer refresh cycle:
 /// 1. Check zoom mode — bail if empty zone
 /// 2. Compute visible regions from viewport (bounding-box intersection, client-side)
-/// 3. POST /regions/timestamps — identify stale/missing regions
-/// 4. POST /regions/buckets   — fetch only stale/missing regions
-/// 5. Merge into region cache and evict off-screen regions
+/// 3. Fetch any region whose cache entry is older than the refresh window (or missing)
+/// 4. Merge into region cache and evict off-screen regions
+///
+/// No server timestamp pre-check — the cache age is the sole staleness signal.
+/// This ensures pruned/emptied regions are always reflected on the next fetch.
 class RegionViewerService {
   final Ref _ref;
   final AppConfig _config;
@@ -26,30 +28,30 @@ class RegionViewerService {
     final visibleRegions = regionsForViewport(mapState.bounds!);
     if (visibleRegions.isEmpty) return;
 
-    final regionIds = visibleRegions.map((r) => r.id).toList();
+    final now = DateTime.now();
+    final refreshWindow =
+        Duration(seconds: _config.viewerRefreshIntervalDefaultSeconds);
+    final currentCache = _ref.read(regionBucketCacheProvider);
+
+    final staleIds = visibleRegions
+        .map((r) => r.id)
+        .where((id) {
+          final entry = currentCache[id];
+          if (entry == null) return true;
+          return now.difference(entry.receivedAt) >= refreshWindow;
+        })
+        .toList();
+
     final cache = _ref.read(regionBucketCacheProvider.notifier);
+    cache.evictRegionsNotIn(visibleRegions.map((r) => r.id).toSet());
+
+    if (staleIds.isEmpty) return;
 
     _ref.read(fetchingProvider.notifier).state = true;
     try {
-      final serverTimestamps =
-          await _ref.read(apiServiceProvider).fetchRegionTimestamps(regionIds);
-
-      final staleIds = regionIds.where((id) {
-        final serverTs = serverTimestamps[id];
-        if (serverTs == null) return false; // no riders in this region
-        final entry = _ref.read(regionBucketCacheProvider)[id];
-        if (entry == null) return true; // not cached yet
-        final serverTime = DateTime.parse(serverTs);
-        return serverTime.isAfter(entry.receivedAt); // server has newer data
-      }).toList();
-
-      if (staleIds.isNotEmpty) {
-        final buckets =
-            await _ref.read(apiServiceProvider).fetchRegionBuckets(staleIds);
-        cache.mergeBuckets(buckets);
-      }
-
-      cache.evictRegionsNotIn(regionIds.toSet());
+      final buckets =
+          await _ref.read(apiServiceProvider).fetchRegionBuckets(staleIds);
+      cache.mergeBuckets(buckets);
     } finally {
       _ref.read(fetchingProvider.notifier).state = false;
     }

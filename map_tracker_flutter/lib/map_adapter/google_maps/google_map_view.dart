@@ -100,8 +100,8 @@ class _GoogleMapViewState extends State<GoogleMapView> {
             gmaps.LatLng(r.south, r.east),
             gmaps.LatLng(r.south, r.west),
           ],
-          fillColor: Colors.cyan.withValues(alpha: 0.08),
-          strokeColor: Colors.cyan.withValues(alpha: 0.6),
+          fillColor: Colors.deepPurple.withValues(alpha: 0.08),
+          strokeColor: Colors.deepPurple.withValues(alpha: 0.6),
           strokeWidth: 1,
         );
       }).toSet();
@@ -128,7 +128,10 @@ class _GoogleMapViewState extends State<GoogleMapView> {
   Widget build(BuildContext context) {
     return gmaps.GoogleMap(
       initialCameraPosition: _initialPosition,
-      onMapCreated: (controller) => setState(() => _controller = controller),
+      onMapCreated: (controller) {
+        setState(() => _controller = controller);
+        _reportViewport(_initialPosition.zoom);
+      },
       onCameraMove: _onCameraMove,
       polygons: {
         if (widget.mode == ZoomMode.heatmap) ..._buildHeatmapPolygons(),

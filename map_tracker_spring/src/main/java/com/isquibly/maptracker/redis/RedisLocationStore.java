@@ -2,6 +2,7 @@ package com.isquibly.maptracker.redis;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.isquibly.maptracker.config.AppProperties;
 import com.isquibly.maptracker.dto.HeatmapBucket;
 import com.isquibly.maptracker.dto.UserEntry;
 import lombok.RequiredArgsConstructor;
@@ -31,11 +32,11 @@ import java.util.*;
 @RequiredArgsConstructor
 public class RedisLocationStore {
 
-    static final Duration USER_TTL       = Duration.ofSeconds(600);
-    static final Duration HEATMAP_CACHE  = Duration.ofSeconds(45);
+    static final Duration HEATMAP_CACHE = Duration.ofSeconds(45);
 
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
+    private final AppProperties config;
 
     // -------------------------------------------------------------------------
     // Write path (called by LocationService)
@@ -87,9 +88,8 @@ public class RedisLocationStore {
     // -------------------------------------------------------------------------
 
     public List<UserEntry> getActiveUsers(String h3DetailCell) {
-        double minScore = Instant.now().getEpochSecond() - USER_TTL.toSeconds();
         Set<String> activeUserIds = redis.opsForZSet()
-                .rangeByScore("cell:scores:" + h3DetailCell, minScore, Double.MAX_VALUE);
+                .range("cell:scores:" + h3DetailCell, 0, -1);
         if (activeUserIds == null || activeUserIds.isEmpty()) return List.of();
 
         List<Object> rawEntries = redis.opsForHash().multiGet(
@@ -120,9 +120,8 @@ public class RedisLocationStore {
     }
 
     public HeatmapBucket computeAndCacheHeatmap(String h3HeatmapCell) {
-        double minScore = Instant.now().getEpochSecond() - USER_TTL.toSeconds();
         Set<String> activeMembers = redis.opsForZSet()
-                .rangeByScore("heatmap:users:" + h3HeatmapCell, minScore, Double.MAX_VALUE);
+                .range("heatmap:users:" + h3HeatmapCell, 0, -1);
 
         Map<String, Integer> breakdown = new HashMap<>();
         if (activeMembers != null) {

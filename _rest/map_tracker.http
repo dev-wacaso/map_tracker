@@ -1,0 +1,44 @@
+@host = 127.0.0.1
+
+@port = 8000
+@root = http://{{host}}:{{port}}
+@test = http://{{host}}:{{port}}/test
+
+
+###
+POST {{test}}/inject
+Content-Type: application/json
+
+{
+    "user_id": "apple004",
+    "role": "foobar",
+    "lat": 39.45527601627966,
+    "lng": -104.07094276148046
+}
+
+
+###
+# Inject 20 random users spread across Denver-area regions (round-robin).
+# Response: { "injected": 20, "distribution": { "07": 7, "10": 7, "11": 6 } }
+POST {{test}}/inject-regions
+Content-Type: application/json
+
+{
+    "count": 25,
+    "regions": ["06"]
+}
+
+
+###
+# Check timestamps for a handful of Denver-area regions.
+# Response: { "07": "2024-...", "10": null, ... }  (null = no active riders)
+POST {{root}}/regions/timestamps
+Content-Type: application/json
+
+{
+    "regions": ["07", "10", "11", "15", "16"]
+}
+
+
+
+

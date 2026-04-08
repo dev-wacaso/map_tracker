@@ -5,7 +5,9 @@ import '../map_adapter/flutter_map/flutter_map_view.dart';
 import '../map_adapter/google_maps/google_map_view.dart';
 import '../map_adapter/map_provider_type.dart';
 import '../map_adapter/map_view.dart';
+import '../models/heatmap_bucket.dart';
 import '../models/map_bounds.dart';
+import '../config/debug_flags.dart';
 import '../providers/config_provider.dart';
 import '../providers/fetching_provider.dart';
 import '../providers/map_provider_selector.dart';
@@ -25,14 +27,34 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Timer? _refreshTimer;
   Timer? _debounceTimer;
 
+  // Sensible defaults used until /config responds. Keep in sync with
+  // _defaultConfig in region_viewer_service.dart.
+  static const double _defaultThresholdHeatmap = 5.25;
+  static const double _defaultThresholdDetail = 6;
+  static const int _defaultRefreshSeconds = 300;
+
   @override
   void initState() {
     super.initState();
+
+    // Start the map and refresh cycle immediately with defaults so the map is
+    // usable even when the backend is unreachable.
+    _triggerRefresh();
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: _defaultRefreshSeconds),
+      (_) => _triggerRefresh(),
+    );
+
+    // If the backend responds, upgrade the timer to the server-configured interval.
     ref.read(configProvider.future).then((config) {
+      if (!mounted) return;
+      _refreshTimer?.cancel();
       _refreshTimer = Timer.periodic(
         Duration(seconds: config.viewerRefreshIntervalDefaultSeconds),
         (_) => _triggerRefresh(),
       );
+    }).catchError((_) {
+      // Keep running with defaults — the error banner will inform the user.
     });
   }
 
@@ -45,13 +67,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   void _onViewportChanged(double zoom, MapBounds bounds) {
     final config = ref.read(configProvider).value;
-    if (config == null) return;
-
     ref.read(mapStateProvider.notifier).update(
           zoom: zoom,
           bounds: bounds,
-          thresholdHeatmap: config.zoomThresholdHeatmap,
-          thresholdDetail: config.zoomThresholdDetail,
+          thresholdHeatmap:
+              config?.zoomThresholdHeatmap ?? _defaultThresholdHeatmap,
+          thresholdDetail:
+              config?.zoomThresholdDetail ?? _defaultThresholdDetail,
         );
 
     _debounceTimer?.cancel();
@@ -66,21 +88,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Widget build(BuildContext context) {
     final configAsync = ref.watch(configProvider);
     final mapState = ref.watch(mapStateProvider);
-    final cache = ref.watch(bucketCacheProvider);
     final providerType = ref.watch(mapProviderTypeProvider);
-
     final isFetching = ref.watch(fetchingProvider);
     final regionCache = ref.watch(regionBucketCacheProvider);
 
-    // All riders from every cached region bucket — map views decide how to render
-    // based on zoom mode (heatmap layer vs individual markers).
     final users = regionCache.values
         .expand((entry) => entry.bucket.riders)
         .toList();
 
-    // No H3 heatmap buckets in region mode — point heatmap is computed client-side
-    // from the users list in FlutterMapView.
-    const heatmapBuckets = <dynamic>[];
+    const heatmapBuckets = <HeatmapBucket>[];
+    final backendError = configAsync.hasError;
 
     return Scaffold(
       appBar: AppBar(
@@ -94,25 +111,45 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: configAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Failed to load config: $e')),
-        data: (_) => Stack(
-          children: [
-            _buildMapView(providerType, mapState, heatmapBuckets, users),
-            Positioned(
-              top: 12,
-              right: 12,
-              child: FetchIndicator(isFetching: isFetching),
+      body: Stack(
+        children: [
+          _buildMapView(providerType, mapState, heatmapBuckets, users),
+          Positioned(
+            top: 12,
+            right: 12,
+            child: FetchIndicator(isFetching: isFetching),
+          ),
+          if (backendError)
+            const Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: _BackendErrorBanner(),
             ),
-          ],
-        ),
+          if (kDebugShowZoomLevel)
+            Positioned(
+              bottom: backendError ? 36 : 12,
+              left: 12,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'zoom: ${mapState.zoom.toStringAsFixed(2)}  [${mapState.mode.name}]',
+                  style: const TextStyle(color: Colors.white, fontSize: 11),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 
-  MapView _buildMapView(MapProviderType type, MapState mapState,
-      heatmapBuckets, users) {
+  MapView _buildMapView(
+      MapProviderType type, MapState mapState, heatmapBuckets, users) {
     return switch (type) {
       MapProviderType.googleMaps => GoogleMapView(
           onViewportChanged: _onViewportChanged,
@@ -127,6 +164,25 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           users: users,
         ),
     };
+  }
+}
+
+class _BackendErrorBanner extends StatelessWidget {
+  const _BackendErrorBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.red.shade800,
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Text(
+          'Backend unavailable — running with defaults',
+          style: TextStyle(color: Colors.white, fontSize: 12),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
   }
 }
 

@@ -26,21 +26,46 @@ spring:
 
 logging:
   level:
-    org.flywaydb: INFO
-    org.springframework.jdbc.datasource: INFO
-    org.postgresql: INFO
-    org.hibernate.SQL: INFO
+    org.flywaydb: DEBUG
+    org.springframework.jdbc.datasource: DEBUG
+    org.postgresql: DEBUG
+    org.hibernate.SQL: DEBUG
     com.zaxxer.hikari: INFO
-    org.hibernate.type.descriptor.sql.BasicBinder: INFO
+    org.hibernate.type.descriptor.sql.BasicBinder: DEBUG
+    com.isquibly.maptracker: DEBUG
+#    org.springframework: DEBUG
 
 server:
   port: 8000
 
 app:
   config:
-    transmitter-interval-seconds: 300
-    zoom-threshold-heatmap: 7.0
-    zoom-threshold-detail: 11.0
+    # How often transmitters (riders) are expected to post their location, in seconds.
+    # Used by the client to know how frequently to send updates.
+    transmitter-interval-seconds: 15
+
+    # Zoom level below which the map shows nothing (no requests sent).
+    zoom-threshold-heatmap: 5.0
+
+    # Zoom level above which the map switches from heatmap to individual rider detail markers.
+    zoom-threshold-detail: 7.0
+
+    # H3 hex resolution used for the coarse heatmap layer.
+    # Lower = larger cells. Resolution 5 ≈ 250 km² per cell.
     h3-resolution-heatmap: 5
+
+    # H3 hex resolution used for the fine detail layer.
+    # Higher = smaller cells. Resolution 8 ≈ 0.7 km² per cell.
     h3-resolution-detail: 8
-    viewer-refresh-interval-default-seconds: 300
+
+    # How often the viewer client should poll for fresh bucket data, in seconds.
+    # Sent to the client via /config so it can set its own refresh timer.
+    viewer-refresh-interval-default-seconds: 15
+
+    # How long a rider's last-known position is considered active, in seconds.
+    # Riders absent longer than this are excluded from bucket reads and pruned by the pruner.
+    rider-ttl-seconds: 60
+
+    # How often the server-side pruner sweeps all region buckets to remove expired riders, in seconds.
+    # Should be shorter than rider-ttl-seconds. Stale entries may linger up to this long past expiry.
+    pruner-interval-seconds: 60

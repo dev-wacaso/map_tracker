@@ -28,14 +28,16 @@ public class DynamicConfigService {
             Integer h3ResolutionHeatmap,
             Integer h3ResolutionDetail,
             Integer viewerRefreshIntervalDefaultSeconds) {
-        
+
         AppProperties updatedConfig = new AppProperties(
             transmitterIntervalSeconds != null ? transmitterIntervalSeconds : currentConfig.transmitterIntervalSeconds(),
             zoomThresholdHeatmap != null ? zoomThresholdHeatmap : currentConfig.zoomThresholdHeatmap(),
             zoomThresholdDetail != null ? zoomThresholdDetail : currentConfig.zoomThresholdDetail(),
             h3ResolutionHeatmap != null ? h3ResolutionHeatmap : currentConfig.h3ResolutionHeatmap(),
             h3ResolutionDetail != null ? h3ResolutionDetail : currentConfig.h3ResolutionDetail(),
-            viewerRefreshIntervalDefaultSeconds != null ? viewerRefreshIntervalDefaultSeconds : currentConfig.viewerRefreshIntervalDefaultSeconds()
+            viewerRefreshIntervalDefaultSeconds != null ? viewerRefreshIntervalDefaultSeconds : currentConfig.viewerRefreshIntervalDefaultSeconds(),
+            currentConfig.riderTtlSeconds(),
+            currentConfig.prunerIntervalSeconds()
         );
         
         this.currentConfig = updatedConfig;

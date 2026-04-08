@@ -2,16 +2,15 @@ package com.isquibly.maptracker.region;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.isquibly.maptracker.config.AppProperties;
 import com.isquibly.maptracker.dto.UserEntry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.*;
 
 /**
@@ -27,10 +26,9 @@ import java.util.*;
 @RequiredArgsConstructor
 public class RegionRedisStore {
 
-    static final Duration RIDER_TTL = Duration.ofSeconds(600);
-
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
+    private final AppProperties config;
 
     // -------------------------------------------------------------------------
     // Write path
@@ -51,10 +49,8 @@ public class RegionRedisStore {
     // -------------------------------------------------------------------------
 
     public List<UserEntry> getActiveRiders(String regionId) {
-        double minScore = Instant.now().getEpochSecond() - RIDER_TTL.toSeconds();
-
         Set<String> activeIds = redis.opsForZSet()
-                .rangeByScore("region:scores:" + regionId, minScore, Double.MAX_VALUE);
+                .range("region:scores:" + regionId, 0, -1);
         if (activeIds == null || activeIds.isEmpty()) return List.of();
 
         List<Object> rawEntries = redis.opsForHash()
@@ -71,6 +67,24 @@ public class RegionRedisStore {
             }
         }
         return result;
+    }
+
+    /**
+     * Removes riders whose last-seen score is older than the configured TTL.
+     * Called by the pruner on a scheduled interval — not during reads.
+     * Returns the number of riders removed.
+     */
+    public int pruneExpired(String regionId) {
+        double maxExpiredScore = Instant.now().getEpochSecond() - config.riderTtlSeconds();
+        String scoresKey = "region:scores:" + regionId;
+        String dataKey   = "region:data:"   + regionId;
+
+        Set<String> expired = redis.opsForZSet().rangeByScore(scoresKey, Double.NEGATIVE_INFINITY, maxExpiredScore);
+        if (expired == null || expired.isEmpty()) return 0;
+
+        redis.opsForZSet().removeRangeByScore(scoresKey, Double.NEGATIVE_INFINITY, maxExpiredScore);
+        redis.opsForHash().delete(dataKey, expired.toArray());
+        return expired.size();
     }
 
     public Map<String, String> getRegionTimestamps(List<String> regionIds) {

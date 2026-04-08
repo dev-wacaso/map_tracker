@@ -9,5 +9,7 @@ public record AppProperties(
         double zoomThresholdDetail,
         int h3ResolutionHeatmap,
         int h3ResolutionDetail,
-        int viewerRefreshIntervalDefaultSeconds
+        int viewerRefreshIntervalDefaultSeconds,
+        int riderTtlSeconds,
+        int prunerIntervalSeconds
 ) {}

@@ -16,6 +16,8 @@ class RegionBucketCacheNotifier extends Notifier<Map<String, RegionCacheEntry>> 
   }
 
   void evictRegionsNotIn(Set<String> visibleIds) {
+    final evicted = state.keys.where((k) => !visibleIds.contains(k)).toList();
+    if (evicted.isEmpty) return;
     state = Map.fromEntries(
       state.entries.where((e) => visibleIds.contains(e.key)),
     );
