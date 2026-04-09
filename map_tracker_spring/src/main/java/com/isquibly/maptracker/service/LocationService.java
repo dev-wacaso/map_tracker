@@ -5,6 +5,7 @@ import com.isquibly.maptracker.dto.LocationRequest;
 import com.isquibly.maptracker.dto.UserEntry;
 import com.isquibly.maptracker.entity.LocationPost;
 import com.isquibly.maptracker.redis.RedisLocationStore;
+import com.isquibly.maptracker.region.Region;
 import com.isquibly.maptracker.region.RegionLookup;
 import com.isquibly.maptracker.region.RegionRedisStore;
 import com.isquibly.maptracker.repository.LocationPostRepository;
@@ -18,7 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
-import java.util.Optional;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -46,8 +47,11 @@ public class LocationService {
         String h3DetailCell  = h3.latLngToCellAddress(req.lat(), req.lng(), config.h3ResolutionDetail());
         String h3HeatmapCell = h3.cellToParentAddress(h3DetailCell, config.h3ResolutionHeatmap());
 
-        // Compute bearing from previous position (null on first post)
-        Double bearing = redisStore.getLastPosition(req.userId())
+        // Compute bearing from user's live region bucket entry — null if new or pruned
+        List<Region> matchedRegions = RegionLookup.findRegions(req.lat(), req.lng());
+        Double bearing = matchedRegions.stream()
+                .flatMap(r -> regionRedisStore.getExistingPosition(r.id(), req.userId()).stream())
+                .findFirst()
                 .map(prev -> BearingCalculator.calculate(prev[0], prev[1], req.lat(), req.lng()))
                 .orElse(null);
 
@@ -59,11 +63,9 @@ public class LocationService {
 
         // H3 write path
         redisStore.upsertUser(h3DetailCell, h3HeatmapCell, entry, req.timestamp());
-        redisStore.saveLastPosition(req.userId(), req.lat(), req.lng());
 
         // Region write path — write to every matching region (border riders may match >1)
-        RegionLookup.findRegions(req.lat(), req.lng())
-                .forEach(region -> regionRedisStore.upsertRider(region.id(), entry, req.timestamp()));
+        matchedRegions.forEach(region -> regionRedisStore.upsertRider(region.id(), entry, req.timestamp()));
 
         var point = GF.createPoint(new Coordinate(req.lng(), req.lat()));
         repository.save(LocationPost.builder()

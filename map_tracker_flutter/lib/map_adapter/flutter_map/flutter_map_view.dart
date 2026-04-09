@@ -4,9 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../../config/debug_flags.dart';
 import '../../data/regions.dart';
 import '../../models/map_bounds.dart';
-import '../../models/region.dart';
 import '../../providers/map_state_provider.dart';
-import '../../widgets/heatmap_layer.dart';
 import '../../widgets/user_marker.dart';
 import '../map_view.dart';
 
@@ -15,7 +13,6 @@ class FlutterMapView extends MapView {
     super.key,
     required super.onViewportChanged,
     required super.mode,
-    required super.heatmapBuckets,
     required super.users,
   });
 
@@ -107,18 +104,6 @@ class _FlutterMapViewState extends State<FlutterMapView> {
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.isquibly.map_tracker',
         ),
-        if (widget.mode == ZoomMode.heatmap && widget.users.isNotEmpty)
-          CircleLayer(
-            circles: widget.users
-                .map((u) => CircleMarker(
-                      point: LatLng(u.lat, u.lng),
-                      radius: 3000,
-                      useRadiusInMeter: true,
-                      color: Colors.red.withValues(alpha: 0.15),
-                      borderStrokeWidth: 0,
-                    ))
-                .toList(),
-          ),
         if (widget.mode == ZoomMode.detail)
           MarkerLayer(
             markers: widget.users

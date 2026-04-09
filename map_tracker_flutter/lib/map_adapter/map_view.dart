@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/heatmap_bucket.dart';
 import '../models/map_bounds.dart';
 import '../models/user_entry.dart';
 import '../providers/map_state_provider.dart';
@@ -16,14 +15,12 @@ typedef ViewportChangedCallback = void Function(double zoom, MapBounds bounds);
 abstract class MapView extends StatefulWidget {
   final ViewportChangedCallback onViewportChanged;
   final ZoomMode mode;
-  final List<HeatmapBucket> heatmapBuckets;
   final List<UserEntry> users;
 
   const MapView({
     super.key,
     required this.onViewportChanged,
     required this.mode,
-    required this.heatmapBuckets,
     required this.users,
   });
 }

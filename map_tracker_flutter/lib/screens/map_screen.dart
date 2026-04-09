@@ -5,9 +5,9 @@ import '../map_adapter/flutter_map/flutter_map_view.dart';
 import '../map_adapter/google_maps/google_map_view.dart';
 import '../map_adapter/map_provider_type.dart';
 import '../map_adapter/map_view.dart';
-import '../models/heatmap_bucket.dart';
 import '../models/map_bounds.dart';
 import '../config/debug_flags.dart';
+import '../models/user_entry.dart';
 import '../providers/config_provider.dart';
 import '../providers/fetching_provider.dart';
 import '../providers/map_provider_selector.dart';
@@ -96,7 +96,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         .expand((entry) => entry.bucket.riders)
         .toList();
 
-    const heatmapBuckets = <HeatmapBucket>[];
     final backendError = configAsync.hasError;
 
     return Scaffold(
@@ -113,7 +112,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       ),
       body: Stack(
         children: [
-          _buildMapView(providerType, mapState, heatmapBuckets, users),
+          _buildMapView(providerType, mapState, users),
           Positioned(
             top: 12,
             right: 12,
@@ -149,18 +148,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   MapView _buildMapView(
-      MapProviderType type, MapState mapState, heatmapBuckets, users) {
+      MapProviderType type, MapState mapState, List<UserEntry> users) {
     return switch (type) {
       MapProviderType.googleMaps => GoogleMapView(
           onViewportChanged: _onViewportChanged,
           mode: mapState.mode,
-          heatmapBuckets: heatmapBuckets,
           users: users,
         ),
       MapProviderType.flutterMap => FlutterMapView(
           onViewportChanged: _onViewportChanged,
           mode: mapState.mode,
-          heatmapBuckets: heatmapBuckets,
           users: users,
         ),
     };
