@@ -12,6 +12,7 @@ class FlutterMapView extends MapView {
   const FlutterMapView({
     super.key,
     required super.onViewportChanged,
+    super.onMarkerTap,
     required super.mode,
     required super.users,
   });
@@ -94,8 +95,8 @@ class _FlutterMapViewState extends State<FlutterMapView> {
     return FlutterMap(
       mapController: _mapController,
       options: MapOptions(
-        initialCenter: const LatLng(39.7392, -104.9903), // Denver, CO
-        initialZoom: 9.0,
+        initialCenter: const LatLng(36.7173, -107.7603), // Center of region 06
+        initialZoom: 7.0,
         onMapReady: _onMapReady,
         onMapEvent: _onMapEvent,
       ),
@@ -111,7 +112,10 @@ class _FlutterMapViewState extends State<FlutterMapView> {
                       point: LatLng(user.lat, user.lng),
                       width: 36,
                       height: 36,
-                      child: UserMarker(user: user),
+                      child: GestureDetector(
+                        onTap: () => widget.onMarkerTap?.call(user),
+                        child: UserMarker(user: user),
+                      ),
                     ))
                 .toList(),
           ),

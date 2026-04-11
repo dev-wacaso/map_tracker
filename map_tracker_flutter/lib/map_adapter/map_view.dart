@@ -4,6 +4,7 @@ import '../models/user_entry.dart';
 import '../providers/map_state_provider.dart';
 
 typedef ViewportChangedCallback = void Function(double zoom, MapBounds bounds);
+typedef MarkerTapCallback = void Function(UserEntry user);
 
 /// Abstract base for all map provider widgets.
 /// Concrete implementations: [FlutterMapView], [GoogleMapView].
@@ -14,12 +15,14 @@ typedef ViewportChangedCallback = void Function(double zoom, MapBounds bounds);
 /// regardless of which provider is active.
 abstract class MapView extends StatefulWidget {
   final ViewportChangedCallback onViewportChanged;
+  final MarkerTapCallback? onMarkerTap;
   final ZoomMode mode;
   final List<UserEntry> users;
 
   const MapView({
     super.key,
     required this.onViewportChanged,
+    this.onMarkerTap,
     required this.mode,
     required this.users,
   });

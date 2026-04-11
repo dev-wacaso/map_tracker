@@ -5,6 +5,7 @@ import '../map_adapter/flutter_map/flutter_map_view.dart';
 import '../map_adapter/google_maps/google_map_view.dart';
 import '../map_adapter/map_provider_type.dart';
 import '../map_adapter/map_view.dart';
+import '../models/app_config.dart';
 import '../models/map_bounds.dart';
 import '../config/debug_flags.dart';
 import '../models/user_entry.dart';
@@ -32,6 +33,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   static const double _defaultThresholdHeatmap = 5.25;
   static const double _defaultThresholdDetail = 6;
   static const int _defaultRefreshSeconds = 300;
+  static const int _defaultMarkerToastSeconds = 5;
+
+  int _markerToastSeconds = _defaultMarkerToastSeconds;
 
   @override
   void initState() {
@@ -46,8 +50,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
 
     // If the backend responds, upgrade the timer to the server-configured interval.
-    ref.read(configProvider.future).then((config) {
+    ref.read(configProvider.future).then((AppConfig config) {
       if (!mounted) return;
+      _markerToastSeconds = config.markerToastDurationSeconds;
       _refreshTimer?.cancel();
       _refreshTimer = Timer.periodic(
         Duration(seconds: config.viewerRefreshIntervalDefaultSeconds),
@@ -82,6 +87,41 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   void _triggerRefresh() {
     ref.read(regionViewerServiceProvider).refresh();
+  }
+
+  void _onMarkerTap(UserEntry user) {
+    final lastSeen = _formatLocalTime(user.lastSeen);
+
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          duration: Duration(seconds: _markerToastSeconds),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                user.userId,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 4),
+              Text('Role: ${user.role}'),
+              Text('Last update: $lastSeen'),
+            ],
+          ),
+        ),
+      );
+  }
+
+  String _formatLocalTime(DateTime dt) {
+    final t = dt.toLocal();
+    final period = t.hour < 12 ? 'AM' : 'PM';
+    final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
+    final m = t.minute.toString().padLeft(2, '0');
+    return '$h:$m $period';
   }
 
   @override
@@ -152,11 +192,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     return switch (type) {
       MapProviderType.googleMaps => GoogleMapView(
           onViewportChanged: _onViewportChanged,
+          onMarkerTap: _onMarkerTap,
           mode: mapState.mode,
           users: users,
         ),
       MapProviderType.flutterMap => FlutterMapView(
           onViewportChanged: _onViewportChanged,
+          onMarkerTap: _onMarkerTap,
           mode: mapState.mode,
           users: users,
         ),

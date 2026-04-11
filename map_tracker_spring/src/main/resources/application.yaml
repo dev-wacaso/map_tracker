@@ -45,7 +45,7 @@ app:
     transmitter-interval-seconds: 15
 
     # Zoom level below which the map shows nothing (no requests sent).
-    zoom-threshold-heatmap: 5.0
+    zoom-threshold-heatmap: 5.5
 
     # Zoom level above which the map switches from heatmap to individual rider detail markers.
     zoom-threshold-detail: 7.0
@@ -69,3 +69,6 @@ app:
     # How often the server-side pruner sweeps all region buckets to remove expired riders, in seconds.
     # Should be shorter than rider-ttl-seconds. Stale entries may linger up to this long past expiry.
     pruner-interval-seconds: 60
+
+    # How long (in seconds) a marker detail toast is shown after tapping a rider on the map.
+    marker-toast-duration-seconds: 5

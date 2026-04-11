@@ -71,4 +71,5 @@ const _defaultConfig = AppConfig(
   h3ResolutionHeatmap: 5,
   h3ResolutionDetail: 8,
   viewerRefreshIntervalDefaultSeconds: 300,
+  markerToastDurationSeconds: 3,
 );

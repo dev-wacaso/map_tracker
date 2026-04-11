@@ -11,5 +11,6 @@ public record AppProperties(
         int h3ResolutionDetail,
         int viewerRefreshIntervalDefaultSeconds,
         int riderTtlSeconds,
-        int prunerIntervalSeconds
+        int prunerIntervalSeconds,
+        int markerToastDurationSeconds
 ) {}

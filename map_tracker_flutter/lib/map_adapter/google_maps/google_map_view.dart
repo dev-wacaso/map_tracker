@@ -4,12 +4,14 @@ import '../../config/debug_flags.dart';
 import '../../data/regions.dart';
 import '../../models/map_bounds.dart';
 import '../../providers/map_state_provider.dart';
+import '../../services/marker_bitmap_cache.dart';
 import '../map_view.dart';
 
 class GoogleMapView extends MapView {
   const GoogleMapView({
     super.key,
     required super.onViewportChanged,
+    super.onMarkerTap,
     required super.mode,
     required super.users,
   });
@@ -21,12 +23,23 @@ class GoogleMapView extends MapView {
 class _GoogleMapViewState extends State<GoogleMapView> {
   gmaps.GoogleMapController? _controller;
 
+  // Markers are rebuilt asynchronously when users change.
+  Set<gmaps.Marker> _markers = {};
+
   static const _initialPosition = gmaps.CameraPosition(
-    target: gmaps.LatLng(39.7392, -104.9903), // Denver, CO
-    zoom: 9.0,
+    target: gmaps.LatLng(36.7173, -107.7603), // Center of region 06
+    zoom: 6.06,
   );
 
   static const _clusterManagerId = gmaps.ClusterManagerId('riders');
+
+  @override
+  void didUpdateWidget(GoogleMapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.users != widget.users || oldWidget.mode != widget.mode) {
+      _rebuildMarkers();
+    }
+  }
 
   // onCameraMove fires synchronously; getVisibleRegion is async so we fire-and-forget.
   void _onCameraMove(gmaps.CameraPosition position) {
@@ -47,19 +60,31 @@ class _GoogleMapViewState extends State<GoogleMapView> {
     );
   }
 
-  Set<gmaps.Marker> _buildMarkers() {
-    return widget.users.map((user) {
-      return gmaps.Marker(
+  Future<void> _rebuildMarkers() async {
+    if (widget.mode == ZoomMode.empty) {
+      if (mounted) setState(() => _markers = {});
+      return;
+    }
+
+    final cache = MarkerBitmapCache.instance;
+    final built = <gmaps.Marker>{};
+
+    for (final user in widget.users) {
+      final icon = await cache.descriptorFor(user.role);
+      built.add(gmaps.Marker(
         markerId: gmaps.MarkerId(user.userId),
         position: gmaps.LatLng(user.lat, user.lng),
         clusterManagerId: _clusterManagerId,
-        icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
-          _hueForRole(user.role),
-        ),
+        icon: icon,
         rotation: user.bearing ?? 0.0,
         flat: true,
-      );
-    }).toSet();
+        anchor: const Offset(0.5, 1.0), // pin tip touches map position
+        consumeTapEvents: true,
+        onTap: () => widget.onMarkerTap?.call(user),
+      ));
+    }
+
+    if (mounted) setState(() => _markers = built);
   }
 
   // --- debug helpers ---------------------------------------------------------
@@ -81,23 +106,14 @@ class _GoogleMapViewState extends State<GoogleMapView> {
 
   // ---------------------------------------------------------------------------
 
-  double _hueForRole(String role) => switch (role) {
-        'plumber'  => gmaps.BitmapDescriptor.hueBlue,
-        'mechanic' => gmaps.BitmapDescriptor.hueOrange,
-        'teacher'  => gmaps.BitmapDescriptor.hueGreen,
-        'driver'   => gmaps.BitmapDescriptor.hueViolet,
-        _          => gmaps.BitmapDescriptor.hueRed,
-      };
-
   @override
   Widget build(BuildContext context) {
-    final showMarkers = widget.mode != ZoomMode.empty;
-
     return gmaps.GoogleMap(
       initialCameraPosition: _initialPosition,
       onMapCreated: (controller) {
         setState(() => _controller = controller);
         _reportViewport(_initialPosition.zoom);
+        _rebuildMarkers();
       },
       onCameraMove: _onCameraMove,
       clusterManagers: {
@@ -106,7 +122,7 @@ class _GoogleMapViewState extends State<GoogleMapView> {
           onClusterTap: (_) {},
         ),
       },
-      markers: showMarkers ? _buildMarkers() : {},
+      markers: _markers,
       polygons: {
         if (kDebugShowRegionBoundaries) ..._buildRegionDebugPolygons(),
       },

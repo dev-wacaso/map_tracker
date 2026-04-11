@@ -37,7 +37,8 @@ public class DynamicConfigService {
             h3ResolutionDetail != null ? h3ResolutionDetail : currentConfig.h3ResolutionDetail(),
             viewerRefreshIntervalDefaultSeconds != null ? viewerRefreshIntervalDefaultSeconds : currentConfig.viewerRefreshIntervalDefaultSeconds(),
             currentConfig.riderTtlSeconds(),
-            currentConfig.prunerIntervalSeconds()
+            currentConfig.prunerIntervalSeconds(),
+            currentConfig.markerToastDurationSeconds()
         );
         
         this.currentConfig = updatedConfig;

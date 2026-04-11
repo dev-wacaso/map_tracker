@@ -3,43 +3,32 @@ package com.isquibly.maptracker.service;
 import com.isquibly.maptracker.config.AppProperties;
 import com.isquibly.maptracker.dto.LocationRequest;
 import com.isquibly.maptracker.dto.UserEntry;
-import com.isquibly.maptracker.entity.LocationPost;
 import com.isquibly.maptracker.redis.RedisLocationStore;
 import com.isquibly.maptracker.region.Region;
 import com.isquibly.maptracker.region.RegionLookup;
 import com.isquibly.maptracker.region.RegionRedisStore;
-import com.isquibly.maptracker.repository.LocationPostRepository;
 import com.isquibly.maptracker.util.BearingCalculator;
 import com.uber.h3core.H3Core;
 import lombok.extern.slf4j.Slf4j;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.time.OffsetDateTime;
 import java.util.List;
 
 @Slf4j
 @Service
 public class LocationService {
 
-    private static final GeometryFactory GF = new GeometryFactory(new PrecisionModel(), 4326);
-
     private final AppProperties config;
     private final RedisLocationStore redisStore;
     private final RegionRedisStore regionRedisStore;
-    private final LocationPostRepository repository;
     private final H3Core h3;
 
     public LocationService(AppProperties config, RedisLocationStore redisStore,
-                           RegionRedisStore regionRedisStore,
-                           LocationPostRepository repository) throws IOException {
+                           RegionRedisStore regionRedisStore) throws IOException {
         this.config           = config;
         this.redisStore       = redisStore;
         this.regionRedisStore = regionRedisStore;
-        this.repository       = repository;
         this.h3               = H3Core.newInstance();
     }
 
@@ -47,7 +36,7 @@ public class LocationService {
         String h3DetailCell  = h3.latLngToCellAddress(req.lat(), req.lng(), config.h3ResolutionDetail());
         String h3HeatmapCell = h3.cellToParentAddress(h3DetailCell, config.h3ResolutionHeatmap());
 
-        // Compute bearing from user's live region bucket entry — null if new or pruned
+        // Compute bearing from user's live region bucket entry in Redis — null if new or pruned
         List<Region> matchedRegions = RegionLookup.findRegions(req.lat(), req.lng());
         Double bearing = matchedRegions.stream()
                 .flatMap(r -> regionRedisStore.getExistingPosition(r.id(), req.userId()).stream())
@@ -66,16 +55,5 @@ public class LocationService {
 
         // Region write path — write to every matching region (border riders may match >1)
         matchedRegions.forEach(region -> regionRedisStore.upsertRider(region.id(), entry, req.timestamp()));
-
-        var point = GF.createPoint(new Coordinate(req.lng(), req.lat()));
-        repository.save(LocationPost.builder()
-                .userId(req.userId())
-                .role(req.role())
-                .location(point)
-                .bearing(bearing)
-                .timestamp(req.timestamp())
-                .h3DetailCell(h3DetailCell)
-                .h3HeatmapCell(h3HeatmapCell)
-                .build());
     }
 }

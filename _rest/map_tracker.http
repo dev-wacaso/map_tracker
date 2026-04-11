@@ -24,7 +24,7 @@ POST {{test}}/inject-regions
 Content-Type: application/json
 
 {
-    "count": 50,
+    "count": 150,
     "regions": ["06"]
 }
 

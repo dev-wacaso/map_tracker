@@ -89,7 +89,7 @@ public class TestInjectorController {
     // POST /test/inject-regions
     // -------------------------------------------------------------------------
 
-    private static final String[] ROLES = {"plumber", "mechanic", "teacher", "driver"};
+    private static final String[] ROLES = {"plumber", "mechanic", "teacher", "driver", "cruiser", "sport", "other"};
     private static final Random RNG = new Random();
 
     /**

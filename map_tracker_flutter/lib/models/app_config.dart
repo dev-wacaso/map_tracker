@@ -5,6 +5,7 @@ class AppConfig {
   final int h3ResolutionHeatmap;
   final int h3ResolutionDetail;
   final int viewerRefreshIntervalDefaultSeconds;
+  final int markerToastDurationSeconds;
 
   const AppConfig({
     required this.transmitterIntervalSeconds,
@@ -13,6 +14,7 @@ class AppConfig {
     required this.h3ResolutionHeatmap,
     required this.h3ResolutionDetail,
     required this.viewerRefreshIntervalDefaultSeconds,
+    required this.markerToastDurationSeconds,
   });
 
   factory AppConfig.fromJson(Map<String, dynamic> json) => AppConfig(
@@ -23,5 +25,7 @@ class AppConfig {
         h3ResolutionDetail: json['h3_resolution_detail'] as int,
         viewerRefreshIntervalDefaultSeconds:
             json['viewer_refresh_interval_default_seconds'] as int,
+        markerToastDurationSeconds:
+            json['marker_toast_duration_seconds'] as int,
       );
 }

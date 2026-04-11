@@ -20,7 +20,10 @@
       "WebFetch(domain:www.thunderforest.com)",
       "WebFetch(domain:docs.mapbox.com)",
       "WebFetch(domain:developers.google.com)",
-      "WebFetch(domain:www.streetmap.biz)"
+      "WebFetch(domain:www.streetmap.biz)",
+      "Bash(python3 -c \"import json,sys; cfg=json.load\\(sys.stdin\\); pkgs=[p for p in cfg['packages'] if 'google_maps' in p['name'].lower\\(\\)]; print\\(json.dumps\\(pkgs, indent=2\\)\\)\")",
+      "Bash(ls:*)",
+      "Bash(xargs cat:*)"
     ]
   }
 }
